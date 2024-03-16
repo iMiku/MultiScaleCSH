@@ -1,0 +1,77 @@
+variable        title  string  disk_eta075
+log             ${title}.equ1ns
+
+units           real
+#neigh_modify    delay 2 every 1 one 3000 page 30000
+
+atom_style      full
+bond_style      harmonic
+angle_style     harmonic
+
+pair_style      lj/cut/coul/long 8 10
+#pair_style      lj/cut/coul/cut 10 12.5
+kspace_style    pppm 1e-3
+read_data       ${title}.data
+
+timestep        1.0
+
+compute         1 all msd
+
+thermo          100
+thermo_style    custom step temp lx pxx ly pyy lz pzz pe c_1[4]
+dump            1 all atom 10000 ${title}.*.lammpstrj
+
+group Ca11 type 1 #q +1.43
+group Ca22 type 2 #q to set until neutral
+group H33 type 3  #q +0.41
+group H44 type 4  #q +0.29
+group O55 type 5  #q -0.82
+group O66 type 6  #q -1.14
+group O77 type 7  #q -1.00
+group Si88 type 8 #q +1.72
+variable nCa11 equal count(Ca11)
+variable nCa22 equal count(Ca22)
+variable nH33  equal count(H33)
+variable nH44  equal count(H44)
+variable nO55  equal count(O55)
+variable nO66  equal count(O66)
+variable nO77  equal count(O77)
+variable nSi88 equal count(Si88)
+variable ca2charge equal "-1.0*(1.43*v_nCa11 - 1.14*v_nO66 - 0.71*v_nO77 + 1.72*v_nSi88)/v_nCa22"
+set type 2 charge ${ca2charge}
+
+#velocity        all create 50 12345678 dist gaussian
+fix             shake all shake 1e-4 100 0 m 1.0
+
+timestep        0.01
+fix             1 all nve/limit 0.01
+run             1000
+unfix           1
+
+fix             1 all nvt temp 50 300 1
+run             1000
+unfix           1
+
+timestep        0.1
+fix             1 all nvt temp 300 300 100
+run             1000
+unfix           1
+
+timestep        1.0
+fix             1 all nvt temp 300 300 100
+run             1000
+unfix           1
+
+restart         10000 ${title}.restart1 ${title}.restart2
+fix             1 all npt temp 300 300 100 iso 0 0 10000 
+run             1000000
+unfix           1
+
+write_data      ${title}.equ1ns.data pair ij
+
+log             ${title}.deform1ns
+fix             1 all npt temp 300 300 100 y 0 0 10000 z 0 0 10000 couple yz 
+fix             2 all deform 10000 x scale 1.1 
+run             100000
+unfix           1
+
